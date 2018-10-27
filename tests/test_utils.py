@@ -24,6 +24,7 @@ class TestConvert(TestCase):
 
     def test_list_unpack(self):
         self.assertEqual(list_unpack([1, 2, 3]), [1, 2, 3])
+        self.assertEqual(list_unpack([{'a': [1,2], 'b': 1}, {'a': 2, 'b': 2}]), {'a':[1,2,2], 'b':[1,2]})
         self.assertEqual(list_unpack([{'a': 1, 'b': 1}, {'a': 2, 'b': 2}]), {'a': [1, 2], 'b': [1, 2]})
         self.assertEqual(list_unpack([{'a': [{'c': {'d':[1, 1], 'e': 1}}, {'c': {'d':[2, 2], 'e': 2}}], 'b': 5},
                                       {'a': [{'c': {'d':[3, 2], 'e': 3}}, {'c': {'d':[4, 4], 'e': 4}}], 'b': 6}]),
