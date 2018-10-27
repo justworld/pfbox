@@ -15,7 +15,7 @@ setup(
     author='justworld',
     description='python framework',
     url='https://github.com/justworld/python-framework',
-    packages=find_packages(exclude=['examples']),
+    packages=find_packages(exclude=['tests']),
     package_data={'pythonframework': ['README.md']},
     install_requires=all_requirements
 )

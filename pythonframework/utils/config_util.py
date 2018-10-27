@@ -9,8 +9,6 @@ class Configurable(object):
     """
     from tornado
     工厂方法模式实现
-    示例 >>examples>>utils_eg
-
     Base class for configurable interfaces.
 
     A configurable interface is an (abstract) class whose constructor
