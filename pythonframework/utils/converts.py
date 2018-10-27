@@ -12,6 +12,7 @@ def json_unpack(ori_data):
     {'data':[{'a':1, 'b':1},{'a':2, 'b':2}]} > {'a':[1,2],'b':[1,2]}
 
     拆分数据, 将多维的dict或list拆分成一维dict或list
+    可能有性能问题
     """
     if isinstance(ori_data, dict):
         return dict_unpack(ori_data)
@@ -38,8 +39,11 @@ def dict_unpack(dict_data):
             is_loop = False
             for k, v in dict_data.items():
                 if isinstance(v, list):
+                    # 如果是list类型，先unpack
+                    # 递归，这之后是一维dict或list
                     v = list_unpack(v)
                 if isinstance(v, dict):
+                    # 如果是dict类型，要重新循环一遍
                     is_loop = True
                     if isinstance(v, dict):
                         for kk, vv in v.items():
@@ -63,20 +67,25 @@ def list_unpack(list_data):
     [{'a': {'c':[1,2], 'b':2}, 'b': 1}, {'a': 2, 'b': 2}] > {'a':2, 'b':[1,2], 'c':[1,2]}
     将多维的list类型数据拆包成一维dict或list
     """
-    res_data = defaultdict(list)
+
     if isinstance(list_data, list):
-        for i in list_data:
-            if isinstance(i, dict):
-                dict_data = dict_unpack(i)
-                for k, v in dict_data.items():
-                    if isinstance(v, list):
-                        for vv in v:
-                            res_data[k].append(vv)
-                    else:
-                        res_data[k].append(v)
+        if len(list_data) > 1:
+            first = list_data[0]
+            if isinstance(first, dict):
+                # 递归，这之后是一维dict
+                res_data = defaultdict(list)
+                for i in list_data:
+                    dict_data = dict_unpack(i)
+                    for k, v in dict_data.items():
+                        if isinstance(v, list):
+                            for vv in v:
+                                res_data[k].append(vv)
+                        else:
+                            res_data[k].append(v)
+
+                return dict(res_data)
+
             else:
                 return list_data
-
-        return dict(res_data)
 
     return None
