@@ -5,7 +5,7 @@
 from unittest import TestCase
 
 # sorts start
-from pythonframework.algorithms.sorts import *
+from pfbox.algorithms.sorts import *
 
 
 class TestSort(TestCase):

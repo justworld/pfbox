@@ -5,7 +5,7 @@ server框架
 from unittest import TestCase
 
 # simple server start
-from pythonframework.servers.basehttp import run
+from pfbox.servers.basehttp import run
 
 
 class TestSimpleServer(TestCase):
