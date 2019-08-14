@@ -2,66 +2,102 @@
 """
 随机数相关
 """
+import threading
 import time
 
-# twitter's snowflake parameters
-twepoch = 1288834974657L
-datacenter_id_bits = 5L
-worker_id_bits = 5L
-sequence_id_bits = 12L
-max_datacenter_id = 1 << datacenter_id_bits
-max_worker_id = 1 << worker_id_bits
-max_sequence_id = 1 << sequence_id_bits
-max_timestamp = 1 << (64L - datacenter_id_bits - worker_id_bits - sequence_id_bits)
-last_timestamp = time.time()
-sequence_id = 0
-import threading
 
-sss = set()
+class Singleton(object):
+    """
+    单例模式简单实现
+    """
+    _instance = None
+
+    def __new__(cls, *args, **kargs):
+        if hasattr(cls, 'thread_lock'):
+            with cls.thread_lock:
+                if not cls._instance:
+                    org = super(Singleton, cls)
+                    cls._instance = org.__new__(cls, *args, **kargs)
+        else:
+            if not cls._instance:
+                org = super(Singleton, cls)
+                cls._instance = org.__new__(cls, *args, **kargs)
+
+        return cls._instance
 
 
-def make_snowflake(timestamp_ms, sequence_id, datacenter_id=0, worker_id=0, twepoch=twepoch):
-    """generate a twitter-snowflake id, based on
+class SnowFlaskID(Singleton):
+    """
     https://github.com/twitter/snowflake/blob/master/src/main/scala/com/twitter/service/snowflake/IdWorker.scala
-    :param: timestamp_ms time since UNIX epoch in milliseconds"""
+    twitter-snowflake算法实现, 生成19位(目前数据库最大支持数字位数为19)纯数字分布式唯一ID
+    64位二进制, 前42为毫秒时间戳, 接下来2位代表版本, 接下来8位代表机器id, 剩余12位代表1毫秒可生成4096个ID
+    64位可支持到2150年, 可支持256台服务器每毫秒同时生成4096个不同ID
+    相比与uuid, 纯数字、位数更少且趋势递增对数据库友好, 生成更快、数据库性能更好
+    单例实现
+    """
+    # 基础时间戳, 保证ID为19位
+    twepoch = 1288834974657
+    # 版本位, 用于解决时间回调问题, 支持4个不同版本
+    version_bits = 2
+    max_version = 1 << version_bits
+    # 时间回调问题极少几率出现, 可忽略
+    version = 0
 
-    sid = ((int(timestamp_ms) + twepoch) % max_timestamp) << datacenter_id_bits << worker_id_bits << sequence_id_bits
-    sid += (datacenter_id % max_datacenter_id) << worker_id_bits << sequence_id_bits
-    sid += (worker_id % max_worker_id) << sequence_id_bits
-    sid += sequence_id % max_sequence_id
+    # 机器位, 保证不同服务器生成不同id, 支持256台服务器
+    mac_id_bits = 8
+    max_mac_id = 1 << mac_id_bits
+    # 机器id, 不同服务器该值需保证不一样, 最大为256
+    mac_id = 0
 
-    sss.add(sid)
-    return sid
+    # 序列数位, 同一毫秒下依次增加, 最大为4096, 超过了会等到下一毫秒生成
+    sequence_id_bits = 12
+    max_sequence_id = 1 << sequence_id_bits
+    sequence_id = 0
 
+    # 时间位, 保证不同毫秒生成的ID一定不会重复
+    max_timestamp = 1 << (64 - mac_id_bits - sequence_id_bits)
+    last_timestamp = time.time() * 1000
 
-def until_nex_timestamp():
-    while (True):
-        now_timestamp = time.time() * 1000
-        if now_timestamp > last_timestamp:
-            global last_timestamp
-            last_timestamp = now_timestamp
-            return
+    thread_lock = threading.Lock()
 
+    def __init__(self, mac_id):
+        print mac_id
+        self.mac_id = mac_id
 
-def get_sequence_id():
-    with threading.Lock():
-        global sequence_id
-        sequence_id = (sequence_id + 1) % max_sequence_id
-        if sequence_id == 0:
-            until_nex_timestamp()
+    def get_id(self):
+        """
+        生成分布式唯一ID
+        """
+        timestamp_ms = time.time() * 1000
+        sid = ((int(
+            timestamp_ms) - self.twepoch) % self.max_timestamp) << self.version_bits << self.mac_id_bits << self.sequence_id_bits
 
-        return sequence_id
+        sid += (self.version % self.max_version) << self.version_bits
+        sid += (self.mac_id % self.max_mac_id) << self.mac_id_bits
+        sid += self._get_sequence_id() % self.max_sequence_id
 
+        return sid
 
-if __name__ == '__main__':
-    import uuid
+    def _get_sequence_id(self):
+        """
+        获取序列数, 保证线程安全
+        :return:
+        """
+        with self.thread_lock:
+            self.sequence_id = (self.sequence_id + 1) % self.max_sequence_id
+            if self.sequence_id == 0:
+                self._until_nex_timestamp()
 
-    start1 = time.time()
-    for i in range(100000):
-        uuid.uuid4()
-    print time.time() - start1
+            s2.append(self.sequence_id)
+            return self.sequence_id
 
-    start = time.time()
-    for i in range(100000):
-        make_snowflake(time.time()*1000, get_sequence_id())
-    print time.time() - start
+    def _until_nex_timestamp(self):
+        """
+        序列数大于4096, 等到下一毫秒生成
+        :return:
+        """
+        while (True):
+            now_timestamp = time.time() * 1000
+            if now_timestamp > self.last_timestamp:
+                self.last_timestamp = now_timestamp
+                return
